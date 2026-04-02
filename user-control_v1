@@ -1,0 +1,95 @@
+// initialise
+enum MODE { ST, CAL, STP, WLK };
+MODE currentState = CAL;
+
+const int switchButtonPin = 2;
+const int debugButtonPin = 3;
+
+int switchButtonState;
+int debugButtonState;
+int prevSwitchButtonState = LOW;
+int prevDebugButtonState = LOW;
+int debounceDelay = 50;
+
+uint32_t debounceTime = 0;
+
+void setup() {
+  pinMode(switchButtonPin, INPUT);
+  pinMode(debugButtonPin, INPUT);
+  Serial.begin(9600);
+
+}
+
+void loop() {
+  stateToggle();
+  debugToggle();
+
+  for(int i = 0; i < 20; i++) {Serial.println();}
+  Serial.println(currentState);
+}
+
+void stateToggle() {  
+  int read = digitalRead(switchButtonPin);
+
+  if(read != prevSwitchButtonState) {
+    debounceTime = millis();
+  }
+
+  if((millis() - debounceTime) > debounceDelay) {
+    if (read != switchButtonState) {
+      switchButtonState = read;
+      
+      if (switchButtonState == HIGH) {
+        switch(currentState) {
+          case ST: {
+            currentState = CAL;
+            break;
+          }
+          case CAL: {
+            currentState = ST;
+            break;
+          }
+          case STP: {
+            currentState = WLK;
+            break;
+          }
+          case WLK: {
+            currentState = STP;
+            break;
+          }
+        }
+      }
+    }
+  }
+  prevSwitchButtonState = read;
+}
+
+void debugToggle() {  
+  int read = digitalRead(debugButtonPin);
+
+  if(read != prevDebugButtonState) {
+    debounceTime = millis();
+  }
+
+  if((millis() - debounceTime) > debounceDelay) {
+    if (read != debugButtonState) {
+      debugButtonState = read;
+      
+      if (debugButtonState == HIGH) {
+        switch(currentState) {
+          case ST:
+          case CAL: {
+            currentState = STP;
+            break;
+          }
+          case STP:
+          case WLK: {
+            currentState = CAL;
+            break;
+          }
+        }
+      }
+    }
+  }
+  prevDebugButtonState = read;
+}
