@@ -18,6 +18,14 @@ void setup() {
   pinMode(debugButtonPin, INPUT);
   Serial.begin(9600);
 
+// Expected functionality:
+// Modes are divided into Debug (ST & CAL) and User (STP & WLK) categories
+// Button on pin 2 toggles between Debug/User modes (ST <--> CAL) (STP <--> WLK)
+// Button on pin 3 toggles between Debug/User categories
+//   Switching to User category always takes you to STP
+//   Switching to Debug category always takes you to CAL
+// Value printed by serial monitor is the index of the MODE in the enum
+// i.e. 0 == ST, 1 == CAL, 2 == STP, 3 == WLK
 }
 
 void loop() {
