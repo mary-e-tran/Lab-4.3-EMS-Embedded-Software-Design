@@ -1,0 +1,57 @@
+void stepCountR() { // if valid input from accelerometer, steps++; 
+
+  float pitchChange = abs(refPitch - pitch);
+  float rollChange = abs(refRoll - roll);
+
+  if(currentState == STP || currentState == WLK) {
+    if(counting) { // able to chain count steps 
+      if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+        if(pitchChange > threshold || rollChange > threshold) { // if threshold breached, wip
+          refPitch = pitch;    // > set breach as new
+          refRoll = roll;      //   reference point
+          steps++;             // > increments steps
+          stpTime = millis();  // > reset timeframe
+        } 
+      }
+      else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+    }
+    else {
+      if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+        refPitch = pitch;
+        refRoll = roll;
+        stpTime = millis();
+        conuting = true
+      }
+    }
+  }
+}
+
+void stepCountXYZ() {
+  float xChange = abs(refX - xOut);
+  float yChange = abs(refY - yOut);
+  float yChange = abs(refY - yOut);
+
+  if(currentState == STP || currentState == WLK) {
+    if(counting) { // able to chain count steps 
+      if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+        if(xChange > threshold || yChange > threshold || zChange > threshold) { // if threshold breached, wip
+          refX = xOut;    // > set breach as
+          refY = yOut;    //   new reference
+          refZ = zOut;    //   point
+          steps++;             // > increments steps
+          stpTime = millis();  // > reset timeframe
+        } 
+      }
+      else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+    }
+    else {
+      if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+        refX = xOut;
+        refY = yOut;
+        refZ = zOut;
+        stpTime = millis();
+        conuting = true
+      }
+    }
+  }
+}
