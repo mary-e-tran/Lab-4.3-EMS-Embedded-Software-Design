@@ -1,8 +1,8 @@
 #include <math.h>
 
 enum MODE {CAL, STP, WLKPC};
-unsigned long lastStep;
-int stepCount = 0;
+unsigned long stpTime;
+int steps = 0;
 
 const int xOut = A2; /* connect x_out of module to A1 of UNO board */
 const int yOut = A1; /* connect y_out of module to A2 of UNO board */
@@ -14,6 +14,23 @@ int zPrev = 0;
 const int stpThreshold = 0.4;
 const int stpDebounceDelay = 60;
 unsigned long stpDebounceTime = 0;
+
+//Variables required for step detection/counter
+bool counting = false;
+int stpPeriodLower = 300; //Change as neccessary
+int stpPeriodUpper = 1000;
+
+double refPitch = 0;
+double pitch = 0;
+double refRoll = 0;
+double roll = 0;
+double thresholdPR = 1;
+
+double refX = 0;
+double refY = 0;
+double refZ = 0;
+double thresholdXYZ = 1;
+
 
 //Variables required for walking pace detection sequence
 int stepsInLastSecond = 0;
@@ -27,92 +44,69 @@ MODE currentState;
 void setup() {
   Serial.begin(9600);
   //currentState = CAL;
-  lastStep = millis();
+  stpTime = millis();
   // put your setup code here, to run once:
 }
 
-// void stepCounting() { // if valid input from accelerometer, steps++;
-  
-//   int xChange = abs(xOut - xPrev);
-//   int yChange = abs(yOut - yPrev);
-//   int zChange = abs(zOut - zPrev);
+void stepCountR() { // if valid input from accelerometer, steps++; 
 
-//   if(currentState == STP || currentState == WLKPC) {                                      // is current MODE is step counting OR walking pace identification ?
-//     if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {    // are any value changes significant enought to be considered a step ?
-//       xPrev = xOut;
-//       yPrev = yOut;
-//       zPrev = zOut;
-      
-//       if(millis() - stpDebounceTime > stpDebounceDelay) {                               // are values changes persistent ?
-//         xChange = abs(xOut - xPrev);
-//         yChange = abs(yOut - yPrev);
-//         zChange = abs(zOut - zPrev);
+  float pitchChange = abs(refPitch - pitch);
+  float rollChange = abs(refRoll - roll);
 
-//         if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {
-//           stepCount++;
-//         }
-//       }
-//     }
-//   }
-// }
+  if(currentState == STP || currentState == WLKPC) {
+    if(counting) { // able to chain count steps 
+      if((millis() - stpTime >= stpPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+        if(pitchChange > thresholdPR || rollChange > thresholdPR) { // if threshold breached, wip
+          refPitch = pitch;    // > set breach as new
+          refRoll = roll;      //   reference point
+          steps++;             // > increments steps
+          stepsInLastSecond++;
+          stpTime = millis();  // > reset timeframe
+        } 
+      }
+      else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+    }
+    else {
+      if (pitchChange > thresholdPR || rollChange > thresholdPR) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+        refPitch = pitch;
+        refRoll = roll;
+        stpTime = millis();
+        counting = true;
+      }
+    }
+  }
+}
 
-// void stepCountR() { // if valid input from accelerometer, steps++; 
+void stepCountXYZ() {
+  float xChange = abs(refX - xOut);
+  float yChange = abs(refY - yOut);
+  float zChange = abs(refZ - zOut);
 
-//   float pitchChange = abs(refPitch - pitch);
-//   float rollChange = abs(refRoll - roll);
-
-//   if(currentState == STP || currentState == WLK) {
-//     if(counting) { // able to chain count steps 
-//       if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
-//         if(pitchChange > threshold || rollChange > threshold) { // if threshold breached, wip
-//           refPitch = pitch;    // > set breach as new
-//           refRoll = roll;      //   reference point
-//           steps++;             // > increments steps
-//           stpTime = millis();  // > reset timeframe
-//         } 
-//       }
-//       else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
-//     }
-//     else {
-//       if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
-//         refPitch = pitch;
-//         refRoll = roll;
-//         stpTime = millis();
-//         conuting = true
-//       }
-//     }
-//   }
-// }
-
-// void stepCountXYZ() {
-//   float xChange = abs(refX - xOut);
-//   float yChange = abs(refY - yOut);
-//   float yChange = abs(refY - yOut);
-
-//   if(currentState == STP || currentState == WLK) {
-//     if(counting) { // able to chain count steps 
-//       if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
-//         if(xChange > threshold || yChange > threshold || zChange > threshold) { // if threshold breached, wip
-//           refX = xOut;    // > set breach as
-//           refY = yOut;    //   new reference
-//           refZ = zOut;    //   point
-//           steps++;             // > increments steps
-//           stpTime = millis();  // > reset timeframe
-//         } 
-//       }
-//       else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
-//     }
-//     else {
-//       if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
-//         refX = xOut;
-//         refY = yOut;
-//         refZ = zOut;
-//         stpTime = millis();
-//         counting = true
-//       }
-//     }
-//   }
-// }
+  if(currentState == STP || currentState == WLKPC) {
+    if(counting) { // able to chain count steps 
+      if((millis() - stpTime >= stpPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+        if(xChange > thresholdXYZ || yChange > thresholdXYZ || zChange > thresholdXYZ) { // if threshold breached, wip
+          refX = xOut;    // > set breach as
+          refY = yOut;    //   new reference
+          refZ = zOut;    //   point
+          steps++;             // > increments steps
+          stepsInLastSecond++;
+          stpTime = millis();  // > reset timeframe
+        } 
+      }
+      else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+    }
+    else {
+      if(xChange > thresholdXYZ || yChange > thresholdXYZ || zChange > thresholdXYZ) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+        refX = xOut;
+        refY = yOut;
+        refZ = zOut;
+        stpTime = millis();
+        counting = true;
+      }
+    }
+  }
+}
 
 
 int walkingPaceDetection(int returnType) { //The function works to track the steps that occured over the last 15 seconds, storing it in an array
@@ -144,7 +138,7 @@ void loop() {
   if ((currentState == STP) || (currentState == WLKPC)) {
 
     walkingPaceDetection(1);
-    if (millis () - lastStep < 3000) {
+    if (millis () - stpTime < 3000) {
       //if step occurs
         //lastStep = millis();
         //stepCount++;
