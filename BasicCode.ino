@@ -31,64 +31,110 @@ void setup() {
   // put your setup code here, to run once:
 }
 
-void stepCounting() { // if valid input from accelerometer, steps++;
+// void stepCounting() { // if valid input from accelerometer, steps++;
   
-  int xChange = abs(xOut - xPrev);
-  int yChange = abs(yOut - yPrev);
-  int zChange = abs(zOut - zPrev);
+//   int xChange = abs(xOut - xPrev);
+//   int yChange = abs(yOut - yPrev);
+//   int zChange = abs(zOut - zPrev);
 
-  if(currentState == STP || currentState == WLKPC) {                                      // is current MODE is step counting OR walking pace identification ?
-    if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {    // are any value changes significant enought to be considered a step ?
-      xPrev = xOut;
-      yPrev = yOut;
-      zPrev = zOut;
+//   if(currentState == STP || currentState == WLKPC) {                                      // is current MODE is step counting OR walking pace identification ?
+//     if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {    // are any value changes significant enought to be considered a step ?
+//       xPrev = xOut;
+//       yPrev = yOut;
+//       zPrev = zOut;
       
-      if(millis() - stpDebounceTime > stpDebounceDelay) {                               // are values changes persistent ?
-        xChange = abs(xOut - xPrev);
-        yChange = abs(yOut - yPrev);
-        zChange = abs(zOut - zPrev);
+//       if(millis() - stpDebounceTime > stpDebounceDelay) {                               // are values changes persistent ?
+//         xChange = abs(xOut - xPrev);
+//         yChange = abs(yOut - yPrev);
+//         zChange = abs(zOut - zPrev);
 
-        if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {
-          stepCount++;
-        }
-      }
-    }
-  }
-}
-//Track when each step over the last 15 seconds occured using an array
-//If 35 or more steps have occurred over the last 15 seconds
-//  (equating to 140/minute)
-//WlkPcDet will return a 2, indicating that the current
-//  walking pace is running
-//else if 5 or less steps have occurred over the last 15 seconds
-//  (equating to around 20/minute)
-  //WlkPcDet will retrn a 0, indicating that the current
-  //  walking pace is stationary
-  //  Note that the number of steps being checked for is not 0;
-  //  this is to account for where the device is moving a small
-  //  amount, but steps are not really occurring
-//else (only occurring if steps in the last 15 seconds are
-//  between 5 and 35)
-  //WlkPcDet will return a 1, indicating that the current
-  //  walking pace is walking
-int walkingPaceDetection() {
-  if (millis() > lastSweepTime + 1000){
-    stepsPerSecond[sweepnumber] = stepsInLastSecond;
-    stepsInLastSecond = 0;
+//         if(xChange > stpThreshold || yChange > stpThreshold || zChange > stpThreshold) {
+//           stepCount++;
+//         }
+//       }
+//     }
+//   }
+// }
+
+// void stepCountR() { // if valid input from accelerometer, steps++; 
+
+//   float pitchChange = abs(refPitch - pitch);
+//   float rollChange = abs(refRoll - roll);
+
+//   if(currentState == STP || currentState == WLK) {
+//     if(counting) { // able to chain count steps 
+//       if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+//         if(pitchChange > threshold || rollChange > threshold) { // if threshold breached, wip
+//           refPitch = pitch;    // > set breach as new
+//           refRoll = roll;      //   reference point
+//           steps++;             // > increments steps
+//           stpTime = millis();  // > reset timeframe
+//         } 
+//       }
+//       else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+//     }
+//     else {
+//       if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+//         refPitch = pitch;
+//         refRoll = roll;
+//         stpTime = millis();
+//         conuting = true
+//       }
+//     }
+//   }
+// }
+
+// void stepCountXYZ() {
+//   float xChange = abs(refX - xOut);
+//   float yChange = abs(refY - yOut);
+//   float yChange = abs(refY - yOut);
+
+//   if(currentState == STP || currentState == WLK) {
+//     if(counting) { // able to chain count steps 
+//       if((millis() - stpTime >= stepPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+//         if(xChange > threshold || yChange > threshold || zChange > threshold) { // if threshold breached, wip
+//           refX = xOut;    // > set breach as
+//           refY = yOut;    //   new reference
+//           refZ = zOut;    //   point
+//           steps++;             // > increments steps
+//           stpTime = millis();  // > reset timeframe
+//         } 
+//       }
+//       else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+//     }
+//     else {
+//       if(pitchChange > threshold || rollChange > threshold) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+//         refX = xOut;
+//         refY = yOut;
+//         refZ = zOut;
+//         stpTime = millis();
+//         counting = true
+//       }
+//     }
+//   }
+// }
+
+
+int walkingPaceDetection(int returnType) { //The function works to track the steps that occured over the last 15 seconds, storing it in an array
+  if (millis() > lastSweepTime + 1000){ //Walking pace is redetermined once per second so it won't bump around as much for variable walking paces
+    stepsPerSecond[sweepnumber] = stepsInLastSecond; //Replaces an element in the array with the most recent steps per second, cycling through them all
+    stepsInLastSecond = 0; 
     sweepnumber++;
-    if (sweepnumber == 15) {
+    if (sweepnumber == 15) { //As there are only 15 elements in the array, cycles back to repeat the cycle
       sweepnumber = 0;
     }
     int tally = 0;
     for (int i = 0; i<=14; i++) {
       tally += stepsPerSecond[i];
-    }
+    } //Tallies the total number of steps that occurred each second over the last 15 seconds
 
-    lastSweepTime = millis();
-    if (tally >= 35) {walkingPace = 2;}
-    else if (tally <= 5) {walkingPace = 0;}
-    else {walkingPace = 1;}
-    return walkingPace;
+    lastSweepTime = millis(); //Timer reset
+    if (tally >= 35) {walkingPace = 2;} //If steps for the cycle is 35 or higher (140/min), returns the user is running
+    else if (tally <= 5) {walkingPace = 0;} //If steps for the cycle is 5 or lower (20/min), returns the user is stationary. Not 0 to account for possible noise or random movements.
+    else {walkingPace = 1;} //If between the two, returns the user is walking
+    if (returnType == 1) {return walkingPace;} //If return type is set to 1, return walking pace (standard mode)
+    else if (returnType == 2) {return tally;} //Allows for the tally to be returned if desired alternatively
+    else {return 0;} //Catch in case neither is used, so it can be easily detected.
   }
 }
 
@@ -96,6 +142,8 @@ int walkingPaceDetection() {
 
 void loop() {
   if ((currentState == STP) || (currentState == WLKPC)) {
+
+    walkingPaceDetection(1);
     if (millis () - lastStep < 3000) {
       //if step occurs
         //lastStep = millis();
