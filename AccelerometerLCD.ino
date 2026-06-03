@@ -6,7 +6,7 @@
 
 // initialise
 enum MODE { ST, CAL, STP, WLK };
-MODE currentState = CAL;
+MODE currentState = CAL; //Change to change the current mode/state
 bool initCalComplete = false;
 
 //Pin definitions
@@ -85,6 +85,8 @@ void loop() {
   stateToggle();
   debugToggle();
   accelerometerInterpreting();
+  stepCountR();
+  String pace = detectPace();
 
   unsigned long currentMillis = millis();
   if (currentMillis - prevDisplayMillis >= displayInterval) {
@@ -309,19 +311,19 @@ void stateToggle() {
         if (switchButtonState == HIGH) {
           switch(currentState) {
             case ST: {
-              currentState = CAL;
+              //currentState = CAL;
               break;
             }
             case CAL: {
-              currentState = ST;
+              //currentState = ST;
               break;
             }
             case STP: {
-              currentState = WLK;
+              //currentState = WLK;
               break;
             }
             case WLK: {
-              currentState = STP;
+              //currentState = STP;
               break;
             }
           }
@@ -348,7 +350,7 @@ void debugToggle() {
           switch(currentState) {
             case ST:
             case CAL: {
-              currentState = STP;
+              //currentState = STP;
               //Reset data from user mode whilst in debug so itll be clean when leaving. 
               steps = 0;
               stepsInLastSecond = 0;
@@ -360,7 +362,7 @@ void debugToggle() {
             }
             case STP:
             case WLK: {
-              currentState = CAL;
+              //currentState = CAL;
               break;
             }
           }
