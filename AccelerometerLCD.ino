@@ -65,7 +65,7 @@ String walkingPace = "";
 int stepsPerSecond[15];
 unsigned long lastSweepTime = 0;
 
-int mockCalPercent = 0;
+double mockCalPercent = 0.00;
 
 //Creation of LCD object to control
 Adafruit_GC9A01A tft(TFT_CS, TFT_DC);
@@ -198,28 +198,42 @@ void updateDisplay() {
     tft.drawCircle(cx, cy, maxRadius - 7, GC9A01A_BLUE);
     tft.drawCircle(cx, cy, maxRadius - 12, GC9A01A_GREEN);
 
-    // Dynamic text centering configuration
-    tft.setTextSize(3);
-    tft.setTextColor(GC9A01A_WHITE);
-    
-    // Crude centering calculation: character width is roughly (6 * textSize) pixels
-    String stepStr = String(steps);
-    int16_t textWidth = stepStr.length() * 18; 
-    
-    tft.setCursor(cx - (textWidth / 2), cy - 10);
-    tft.print(stepStr);
-    
-    // Visual text sub-label
-    tft.setTextSize(1);
-    tft.setCursor(cx - 15, cy + 20);
-    tft.print("STEPS");
+    if (currentState == STP) {
+      // Dynamic text centering configuration
+      tft.setTextSize(3);
+      tft.setTextColor(GC9A01A_WHITE);
 
-    // Simulate stepping for proof of concept
-    if(currentState == WLK) {
+      // Crude centering calculation: character width is roughly (6 * textSize) pixels
+      String stepStr = String(steps);
+      int16_t textWidth = stepStr.length() * 18; 
+      
+      tft.setCursor(cx - (textWidth / 2), cy - 10);
+      tft.print(stepStr);
+      
+      // Visual text sub-label
       tft.setTextSize(1);
-      tft.setCursor(cx - 65, cy + 35);
-      tft.print("Current Pace: " + detectPace());
+      tft.setCursor(cx - 15, cy + 20);
+      tft.print("STEPS");
     }
+   else {
+      // Replace the existing WLK block with this:
+      tft.setTextSize(2);
+      tft.setTextColor(GC9A01A_WHITE);
+
+      String pace = detectPace();
+
+      // Each char at textSize 2 is 12px wide, 16px tall
+      int16_t textWidth = pace.length() * 12;
+
+      tft.setCursor(cx - (textWidth / 2), cy + 8);
+      tft.print(pace);
+
+      tft.setTextSize(1);
+      int16_t labelWidth = 12 * 4; // "PACE" = 5 chars
+      tft.setCursor(cx - (labelWidth / 2), cy - 14);
+      tft.print("PACE");
+    }
+    // Simulate stepping for proof of concept
 
   } 
   else if (currentState == CAL || currentState == ST) {
@@ -237,7 +251,8 @@ void updateDisplay() {
     tft.setTextColor(GC9A01A_WHITE);
 
     if (currentState == CAL) { //Replace once correct callibration code is created
-      String calStr = String(mockCalPercent) + "%";
+      int mockCalPercentDisp = round(mockCalPercent);
+      String calStr = String(mockCalPercentDisp) + "%";
       int16_t textWidth = calStr.length() * 12;
       
       tft.setCursor(cx - (textWidth / 2), cy - 15);
@@ -251,7 +266,7 @@ void updateDisplay() {
       tft.print("Rotate left");
 
       // Simulate calibration progression
-      mockCalPercent += 5;
+      mockCalPercent += 9.3;
       if (mockCalPercent > 100) {
         mockCalPercent = 0;
         if (initCalComplete == false) {
@@ -266,11 +281,11 @@ void updateDisplay() {
       tft.setTextColor(GC9A01A_YELLOW);
       
       tft.setCursor(cx - 30, cy - 30);
-      tft.print("X: "); tft.println(x_adc_value);
+      tft.print("X: "); tft.println(x_g_value);
       tft.setCursor(cx - 30, cy - 5);
-      tft.print("Y: "); tft.println(y_adc_value);
+      tft.print("Y: "); tft.println(y_g_value);
       tft.setCursor(cx - 30, cy + 20);
-      tft.print("Z: "); tft.println(z_adc_value);
+      tft.print("Z: "); tft.println(z_g_value);
     }
   }
   unsigned long currentMillis = millis();
@@ -280,74 +295,79 @@ void updateDisplay() {
 
 
 void stateToggle() {  
-  int read = digitalRead(switchButtonPin);
+  if (initCalComplete) {
+    int read = digitalRead(switchButtonPin);
 
-  if(read != prevSwitchButtonState) {
-    debounceTime = millis();
-  }
+    if(read != prevSwitchButtonState) {
+      debounceTime = millis();
+    }
 
-  if((millis() - debounceTime) > debounceDelay) {
-    if (read != switchButtonState) {
-      switchButtonState = read;
-      
-      if (switchButtonState == HIGH) {
-        switch(currentState) {
-          case ST: {
-            currentState = CAL;
-            break;
-          }
-          case CAL: {
-            currentState = ST;
-            break;
-          }
-          case STP: {
-            currentState = WLK;
-            break;
-          }
-          case WLK: {
-            currentState = STP;
-            break;
+    if((millis() - debounceTime) > debounceDelay) {
+      if (read != switchButtonState) {
+        switchButtonState = read;
+        
+        if (switchButtonState == HIGH) {
+          switch(currentState) {
+            case ST: {
+              currentState = CAL;
+              break;
+            }
+            case CAL: {
+              currentState = ST;
+              break;
+            }
+            case STP: {
+              currentState = WLK;
+              break;
+            }
+            case WLK: {
+              currentState = STP;
+              break;
+            }
           }
         }
       }
     }
+    prevSwitchButtonState = read;
   }
-  prevSwitchButtonState = read;
 }
 
-void debugToggle() {  
-  int read = digitalRead(debugButtonPin);
+void debugToggle() {
+  if (initCalComplete) {
+    int read = digitalRead(debugButtonPin);
 
-  if(read != prevDebugButtonState) {
-    debounceTime = millis();
-  }
+    if(read != prevDebugButtonState) {
+      debounceTime = millis();
+    }
 
-  if((millis() - debounceTime) > debounceDelay) {
-    if (read != debugButtonState) {
-      debugButtonState = read;
-      
-      if (debugButtonState == HIGH) {
-        switch(currentState) {
-          case ST:
-          case CAL: {
-            currentState = STP;
-            //Reset data from user mode whilst in debug so itll be clean when leaving. 
-            steps = 0;
-            stepsInLastSecond = 0;
-            sweepnumber = 0;
-            for (int i = 0; i<=14; i++) {
-              stepsPerSecond[i] = 0;
+    if((millis() - debounceTime) > debounceDelay) {
+      if (read != debugButtonState) {
+        debugButtonState = read;
+        
+        if (debugButtonState == HIGH) {
+          switch(currentState) {
+            case ST:
+            case CAL: {
+              currentState = STP;
+              //Reset data from user mode whilst in debug so itll be clean when leaving. 
+              steps = 0;
+              stepsInLastSecond = 0;
+              sweepnumber = 0;
+              for (int i = 0; i<=14; i++) {
+                stepsPerSecond[i] = 0;
+              }
+              break;
             }
-            break;
-          }
-          case STP:
-          case WLK: {
-            currentState = CAL;
-            break;
+            case STP:
+            case WLK: {
+              currentState = CAL;
+              break;
+            }
           }
         }
       }
     }
-  }
-  prevDebugButtonState = read;
+    prevDebugButtonState = read;
+  } 
+  
 }
