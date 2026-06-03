@@ -7,13 +7,14 @@
 // initialise
 enum MODE { ST, CAL, STP, WLK };
 MODE currentState = CAL;
+bool initCalComplete = false;
 
 //Pin definitions
-const int x_out = A2;
-const int y_out = A1;
-const int z_out = A0;
+const int x_out = A0;
+const int y_out = A2;
+const int z_out = A1;
 #define TFT_DC 7
-#define TFT_CS 10
+#define TFT_CS 10 
 //TFT_SCL 13
 //TFT_SDA 11
 //TFT_RES 8
@@ -28,20 +29,43 @@ int prevDebugButtonState = LOW;
 int debounceDelay = 50;
 
 uint32_t debounceTime = 0;
+
+//Variables for keeping the readings from the accelerometer present.
 int x_adc_value, y_adc_value, z_adc_value;
 double x_g_value, y_g_value, z_g_value;
 double roll, pitch, yaw;
+
 // Variables for display timing and logic simulations
 unsigned long prevDisplayMillis = 0;
 const long displayInterval = 1500; // Refreshes the display every 1.5 seconds
+
 //Variables for step count and the walking pace detection tracking
+unsigned long stpTime;
+int steps = 0;
+const int stpThreshold = 0.4;
+const int stpDebounceDelay = 60;
+unsigned long stpDebounceTime = 0;
+//Variables required for step detection/counter
+bool counting = false;
+int stpPeriodLower = 300; //Change as neccessary
+int stpPeriodUpper = 1000;
+
+double refPitch = 0;
+double refRoll = 0;
+double thresholdPR = 1000;
+
+double refX = 0;
+double refY = 0;
+double refZ = 0;
+double thresholdXYZ = 1;
+
 int stepsInLastSecond = 0;
 int sweepnumber = 0;
+String walkingPace = "";
 int stepsPerSecond[15];
-int buttonState;
-int lastButtonState = LOW;
 unsigned long lastSweepTime = 0;
 
+int mockCalPercent = 0;
 
 //Creation of LCD object to control
 Adafruit_GC9A01A tft(TFT_CS, TFT_DC);
@@ -53,6 +77,7 @@ void setup() {
   tft.begin();
 
   lastSweepTime = millis();
+  stpTime = millis();
   updateDisplay();
 }
 
@@ -67,28 +92,6 @@ void loop() {
   }
 }
 
-unsigned long testText() {
-  tft.fillScreen(GC9A01A_BLACK);
-  unsigned long start = micros(); 
-  tft.setCursor(0, 0);
-  tft.setTextColor(GC9A01A_WHITE);  tft.setTextSize(1);
-  tft.println("Hello World!");
-  tft.setTextColor(GC9A01A_YELLOW); tft.setTextSize(2);
-  tft.println(1234.56);
-  tft.setTextColor(GC9A01A_RED);    tft.setTextSize(3);
-  tft.println(0xDEADBEEF, HEX);
-  tft.println();
-  tft.setTextColor(GC9A01A_GREEN);
-  tft.setTextSize(5);
-  tft.println("BASIC");
-  tft.setTextSize(2);
-  tft.println("have a read of this");
-  tft.setTextSize(1);
-  tft.println("isn't actually doing much.");
-  tft.println("will update for displaying Accelerometer values later");
-  return micros() - start;
-}
-
 void accelerometerInterpreting() {
   x_adc_value = analogRead(x_out); /* Digital value of voltage on x_out pin */ 
   y_adc_value = analogRead(y_out); /* Digital value of voltage on y_out pin */ 
@@ -100,6 +103,84 @@ void accelerometerInterpreting() {
 
   roll = ( ( (atan2(y_g_value,z_g_value) * 180) / 3.14 ) + 180 ); /* Formula for roll */
   pitch = ( ( (atan2(z_g_value,x_g_value) * 180) / 3.14 ) + 90 ); /* Formula for pitch */
+}
+
+void stepCountR() { // if valid input from accelerometer, steps++; 
+  float pitchChange = abs(refPitch - pitch);
+  float rollChange = abs(refRoll - roll);
+
+  if(counting) { // able to chain count steps 
+    if((millis() - stpTime >= stpPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+      if(pitchChange > thresholdPR || rollChange > thresholdPR) { // if threshold breached, wip
+        refPitch = pitch;    // > set breach as new
+        refRoll = roll;      //   reference point
+        steps++;             // > increments steps
+        stpTime = millis();  // > reset timeframe
+        stepsInLastSecond++;
+      } 
+    }
+    else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+  }
+  else {
+    if(pitchChange > thresholdPR || rollChange > thresholdPR) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+      refPitch = pitch;
+      refRoll = roll;
+      stpTime = millis();
+      counting = true;
+    }
+  }
+}
+
+void stepCountXYZ() {
+  float xChange = abs(refX - x_adc_value);
+  float yChange = abs(refY - y_adc_value);
+  float zChange = abs(refZ - z_adc_value);
+  float pitchChange = abs(refPitch - pitch);
+  float rollChange = abs(refRoll - roll);
+
+  if(counting) { // able to chain count steps 
+    if((millis() - stpTime >= stpPeriodLower) && (millis() - stpTime <= stpPeriodUpper)) { // while within timeframe (natural buffer + time limit )
+      if(xChange > thresholdXYZ || yChange > thresholdXYZ || zChange > thresholdXYZ) { // if threshold breached, wip
+        refX = x_adc_value;    // > set breach as
+        refY = y_adc_value;    //   new reference
+        refZ = z_adc_value;    //   point
+        steps++;             // > increments steps
+        stpTime = millis();  // > reset timeframe
+        stepsInLastSecond++;
+      } 
+    }
+    else if (millis() - stpTime > stpPeriodUpper) {counting = false;} // break if timeframe exceeded without peak
+  }
+  else {
+    if (pitchChange > thresholdPR || rollChange > thresholdPR) { // if threshold breached not in chain counting state, set to chain counting state and reset timeframe
+      refX = x_adc_value;
+      refY = y_adc_value;
+      refZ = z_adc_value;
+      stpTime = millis();
+      counting = true;
+      }
+  }
+}
+
+String detectPace() {
+  if (millis() > lastSweepTime + 1000){
+    stepsPerSecond[sweepnumber] = stepsInLastSecond;
+    stepsInLastSecond = 0;
+    sweepnumber++;
+    if (sweepnumber == 15) {
+      sweepnumber = 0;
+    }
+    int tally = 0;
+    for (int i = 0; i<=14; i++) {
+      tally += stepsPerSecond[i];
+    }
+    if (tally >= 35) {walkingPace = "RUNNING";}
+    else if (tally <= 5) {walkingPace = "STATIONARY";}
+    else {walkingPace = "WALKING";}
+
+    lastSweepTime = millis();
+    return walkingPace;
+  }
 }
 
 // Custom function to handle dynamic mode drawing
@@ -122,7 +203,7 @@ void updateDisplay() {
     tft.setTextColor(GC9A01A_WHITE);
     
     // Crude centering calculation: character width is roughly (6 * textSize) pixels
-    String stepStr = String(mockStepCount);
+    String stepStr = String(steps);
     int16_t textWidth = stepStr.length() * 18; 
     
     tft.setCursor(cx - (textWidth / 2), cy - 10);
@@ -135,14 +216,14 @@ void updateDisplay() {
 
     // Simulate stepping for proof of concept
     if(currentState == WLK) {
-      mockStepCount += 3;
       tft.setTextSize(1);
       tft.setCursor(cx - 65, cy + 35);
-      tft.print("Current Pace: RUNNING");
+      tft.print("Current Pace: " + detectPace());
     }
 
   } 
   else if (currentState == CAL || currentState == ST) {
+    
     // 2 circles along the outer edge: Orange -> Red
     // Note: Adafruit_GFX doesn't have a built-in GC9A01A_ORANGE macro, 
     // so we build it via color565(R, G, B) -> Red max, Green mid, Blue zero
@@ -155,7 +236,7 @@ void updateDisplay() {
     tft.setTextSize(2);
     tft.setTextColor(GC9A01A_WHITE);
 
-    if (currentState == CAL) {
+    if (currentState == CAL) { //Replace once correct callibration code is created
       String calStr = String(mockCalPercent) + "%";
       int16_t textWidth = calStr.length() * 12;
       
@@ -171,25 +252,28 @@ void updateDisplay() {
 
       // Simulate calibration progression
       mockCalPercent += 5;
-      if (mockCalPercent > 100) mockCalPercent = 0;
+      if (mockCalPercent > 100) {
+        mockCalPercent = 0;
+        if (initCalComplete == false) {
+          initCalComplete = true;
+          currentState = STP;
+        }
+      }
     } 
-    else if (currentState == ST) {
+    else if (currentState == ST) { //Does not currently read the ST pin as we didnt connect it on the pcb; will display the raw adc values though.
       // Print live Accelerometer outputs
-      int x_val = analogRead(x_out);
-      int y_val = analogRead(y_out);
-      int z_val = analogRead(z_out);
-
       tft.setTextSize(2);
       tft.setTextColor(GC9A01A_YELLOW);
       
       tft.setCursor(cx - 30, cy - 30);
-      tft.print("X: "); tft.println(x_val);
+      tft.print("X: "); tft.println(x_adc_value);
       tft.setCursor(cx - 30, cy - 5);
-      tft.print("Y: "); tft.println(y_val);
+      tft.print("Y: "); tft.println(y_adc_value);
       tft.setCursor(cx - 30, cy + 20);
-      tft.print("Z: "); tft.println(z_val);
+      tft.print("Z: "); tft.println(z_adc_value);
     }
   }
+  unsigned long currentMillis = millis();
   prevDisplayMillis = currentMillis;
 }
 
@@ -247,6 +331,13 @@ void debugToggle() {
           case ST:
           case CAL: {
             currentState = STP;
+            //Reset data from user mode whilst in debug so itll be clean when leaving. 
+            steps = 0;
+            stepsInLastSecond = 0;
+            sweepnumber = 0;
+            for (int i = 0; i<=14; i++) {
+              stepsPerSecond[i] = 0;
+            }
             break;
           }
           case STP:
